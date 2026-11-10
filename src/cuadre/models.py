@@ -1,6 +1,8 @@
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from types import MappingProxyType
-from typing import Mapping
+from typing import Optional
 
 
 MONETARY_FIELDS = (
@@ -52,6 +54,9 @@ class ReconciliationAmounts:
             if value < 0:
                 raise ValueError(f"{name} cannot be negative.")
 
+        if not isinstance(self.field_notes, Mapping):
+            raise TypeError("field_notes must be a mapping.")
+
         for name, note in self.field_notes.items():
             if name not in ALL_FIELDS:
                 raise ValueError(f"Unknown field note: {name}")
@@ -64,3 +69,69 @@ class ReconciliationAmounts:
             "field_notes",
             MappingProxyType(dict(self.field_notes)),
         )
+
+
+@dataclass(frozen=True)
+class CashVerification:
+    matches_expected: bool
+    discrepancy_note: str = ""
+
+    def __post_init__(self):
+        if not isinstance(self.matches_expected, bool):
+            raise TypeError("Cash confirmation must be True or False.")
+
+        if not isinstance(self.discrepancy_note, str):
+            raise TypeError("Discrepancy note must be text.")
+
+        note = self.discrepancy_note.strip()
+
+        if not self.matches_expected and not note:
+            raise ValueError(
+                "A discrepancy note is required when cash does not match."
+            )
+
+        object.__setattr__(self, "discrepancy_note", note)
+
+
+@dataclass(frozen=True)
+class Reconciliation:
+    date: date
+    store_code: str
+    store_name: str
+    amounts: ReconciliationAmounts
+    cash_verification: Optional[CashVerification] = None
+
+    def __post_init__(self):
+        if type(self.date) is not date:
+            raise TypeError("Reconciliation date must be a date object.")
+
+        if not isinstance(self.store_code, str):
+            raise TypeError("Store code must be text.")
+
+        if not isinstance(self.store_name, str):
+            raise TypeError("Store name must be text.")
+
+        store_code = self.store_code.strip()
+        store_name = self.store_name.strip()
+
+        if not store_code:
+            raise ValueError("Store code cannot be empty.")
+
+        if not store_name:
+            raise ValueError("Store name cannot be empty.")
+
+        if not isinstance(self.amounts, ReconciliationAmounts):
+            raise TypeError(
+                "amounts must be a ReconciliationAmounts instance."
+            )
+
+        if (
+            self.cash_verification is not None
+            and not isinstance(self.cash_verification, CashVerification)
+        ):
+            raise TypeError(
+                "cash_verification must be a CashVerification instance or None."
+            )
+
+        object.__setattr__(self, "store_code", store_code)
+        object.__setattr__(self, "store_name", store_name)
