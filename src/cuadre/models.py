@@ -45,7 +45,7 @@ class ReconciliationAmounts:
     garments_exchange: int = 0
 
     coupons_sold_other_method_details: str = ""
-    field_notes: Mapping[str, str] = field(default_factory=dict)
+    field_notes: Mapping[str, str] = field(default_factory=dict, hash=False)
 
     def __post_init__(self):
         for name in ALL_FIELDS:

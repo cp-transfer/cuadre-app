@@ -1,4 +1,3 @@
-
 from datetime import date
 
 import pytest
@@ -202,3 +201,25 @@ def test_reconciliation_allows_negative_expected_cash_with_discrepancy_note():
 
     assert reconciliation.is_complete is True
     reconciliation.validate_for_submission()
+
+
+def test_reconciliation_amounts_are_hashable():
+    amounts = ReconciliationAmounts(
+        net_sales=100000,
+        field_notes={"net_sales": "Valor verificado"},
+    )
+
+    assert isinstance(hash(amounts), int)
+
+
+def test_field_notes_remain_part_of_equality():
+    first = ReconciliationAmounts(
+        net_sales=100000,
+        field_notes={"net_sales": "Nota A"},
+    )
+    second = ReconciliationAmounts(
+        net_sales=100000,
+        field_notes={"net_sales": "Nota B"},
+    )
+
+    assert first != second
