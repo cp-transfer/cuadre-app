@@ -2,6 +2,7 @@
 import pytest
 
 from cuadre.validation import (
+    build_reconciliation_amounts,
     parse_money,
     parse_quantity,
     validate_cash_verification,
@@ -122,3 +123,67 @@ def test_negative_expected_cash_cannot_be_confirmed_as_match():
             True,
             "Revisar contabilidad",
         )
+
+ALL_RAW_VALUES = {
+    "net_sales": "150.000",
+    "cards": "20.000",
+    "qr": "10.000",
+    "sistecredito": "",
+    "addi": None,
+    "coupons_redeemed": "5.000",
+    "expenses": "2.000",
+    "sistecredito_collections": "1.000",
+    "coupons_sold": "500",
+    "bags": "10",
+    "garments": "25",
+    "garments_exchange": "2",
+}
+
+
+def test_build_reconciliation_amounts():
+    amounts = build_reconciliation_amounts(ALL_RAW_VALUES)
+
+    assert amounts.net_sales == 150000
+    assert amounts.cards == 20000
+    assert amounts.qr == 10000
+    assert amounts.sistecredito == 0
+    assert amounts.addi == 0
+    assert amounts.coupons_redeemed == 5000
+    assert amounts.expenses == 2000
+    assert amounts.sistecredito_collections == 1000
+    assert amounts.coupons_sold == 500
+    assert amounts.bags == 10
+    assert amounts.garments == 25
+    assert amounts.garments_exchange == 2
+
+
+def test_build_reconciliation_amounts_preserves_field_notes():
+    amounts = build_reconciliation_amounts(
+        ALL_RAW_VALUES,
+        field_notes={"expenses": "Gasto autorizado"},
+    )
+
+    assert amounts.field_notes["expenses"] == "Gasto autorizado"
+
+
+def test_build_reconciliation_amounts_rejects_missing_fields():
+    with pytest.raises(ValueError, match="Missing reconciliation fields"):
+        build_reconciliation_amounts({"net_sales": "100000"})
+
+
+def test_build_reconciliation_amounts_rejects_unknown_fields():
+    with pytest.raises(ValueError, match="Unknown reconciliation fields"):
+        build_reconciliation_amounts({
+            **ALL_RAW_VALUES,
+            "unknown_field": "100",
+        })
+
+
+def test_build_reconciliation_amounts_rejects_invalid_values():
+    raw_values = {
+        **ALL_RAW_VALUES,
+        "net_sales": "abc",
+    }
+
+    with pytest.raises(ValueError):
+        build_reconciliation_amounts(raw_values)

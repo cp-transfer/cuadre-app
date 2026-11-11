@@ -1,7 +1,12 @@
+from collections.abc import Mapping
 import re
 
-from cuadre.models import CashVerification
-
+from cuadre.models import (
+    ALL_FIELDS,
+    INFORMATIONAL_FIELDS,
+    CashVerification,
+    ReconciliationAmounts,
+)
 
 _INTEGER_PATTERN = re.compile(r"^[0-9]+$")
 _GROUPED_INTEGER_PATTERN = re.compile(r"^[0-9]{1,3}(?:\.[0-9]{3})+$")
@@ -49,6 +54,45 @@ def parse_quantity(value: object, field_name: str = "Quantity") -> int:
     """Parse a nonnegative whole-number quantity."""
     return _parse_nonnegative_integer(value, field_name)
 
+def build_reconciliation_amounts(
+    raw_values: Mapping[str, object],
+    field_notes: Mapping[str, str] | None = None,
+) -> ReconciliationAmounts:
+    """
+    Build validated reconciliation amounts from raw input values.
+
+    Every expected field must be present.
+    Blank values are normalized to zero by the existing parsers.
+    """
+
+    if not isinstance(raw_values, Mapping):
+        raise TypeError("Raw values must be a mapping.")
+
+    missing_fields = set(ALL_FIELDS) - set(raw_values)
+    if missing_fields:
+        names = ", ".join(sorted(missing_fields))
+        raise ValueError(f"Missing reconciliation fields: {names}")
+
+    unknown_fields = set(raw_values) - set(ALL_FIELDS)
+    if unknown_fields:
+        names = ", ".join(sorted(map(str, unknown_fields)))
+        raise ValueError(f"Unknown reconciliation fields: {names}")
+
+    parsed_values = {}
+
+    for name in ALL_FIELDS:
+        if name in INFORMATIONAL_FIELDS:
+            parsed_values[name] = parse_quantity(
+                raw_values[name],
+                field_name=name,
+            )
+        else:
+            parsed_values[name] = parse_money(raw_values[name])
+
+    return ReconciliationAmounts(
+        **parsed_values,
+        field_notes={} if field_notes is None else field_notes,
+    )
 
 def validate_cash_verification(
     expected_cash: int,

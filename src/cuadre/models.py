@@ -133,5 +133,27 @@ class Reconciliation:
                 "cash_verification must be a CashVerification instance or None."
             )
 
+        if self.cash_verification is not None:
+            from cuadre.calculations import calculate_expected_cash
+
+            expected_cash = calculate_expected_cash(self.amounts)
+
+            if expected_cash < 0 and self.cash_verification.matches_expected:
+                raise ValueError(
+                    "Negative expected cash cannot be confirmed as a match."
+                )
+
         object.__setattr__(self, "store_code", store_code)
         object.__setattr__(self, "store_name", store_name)
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether cash verification has been recorded."""
+        return self.cash_verification is not None
+
+    def validate_for_submission(self) -> None:
+        """Ensure cash verification exists before submission."""
+        if not self.is_complete:
+            raise ValueError(
+                "Cash verification is required before submission."
+            )

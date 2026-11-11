@@ -134,3 +134,71 @@ def test_field_notes_reject_invalid_note_values():
         ReconciliationAmounts(
             field_notes={"net_sales": 1000},
         )
+
+def test_reconciliation_is_incomplete_without_cash_verification():
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 10),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(net_sales=100000),
+    )
+
+    assert reconciliation.is_complete is False
+
+
+def test_reconciliation_requires_cash_verification_for_submission():
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 10),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(net_sales=100000),
+    )
+
+    with pytest.raises(ValueError, match="Cash verification is required"):
+        reconciliation.validate_for_submission()
+
+
+def test_reconciliation_is_complete_with_cash_verification():
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 10),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(net_sales=100000),
+        cash_verification=CashVerification(matches_expected=True),
+    )
+
+    assert reconciliation.is_complete is True
+    reconciliation.validate_for_submission()
+
+
+def test_reconciliation_rejects_negative_expected_cash_confirmed_as_match():
+    with pytest.raises(ValueError, match="cannot be confirmed as a match"):
+        Reconciliation(
+            date=date(2026, 11, 10),
+            store_code="11",
+            store_name="HIPER",
+            amounts=ReconciliationAmounts(
+                net_sales=10000,
+                cards=20000,
+            ),
+            cash_verification=CashVerification(matches_expected=True),
+        )
+
+
+def test_reconciliation_allows_negative_expected_cash_with_discrepancy_note():
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 10),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(
+            net_sales=10000,
+            cards=20000,
+        ),
+        cash_verification=CashVerification(
+            matches_expected=False,
+            discrepancy_note="Revisar ventas y medios de pago",
+        ),
+    )
+
+    assert reconciliation.is_complete is True
+    reconciliation.validate_for_submission()
