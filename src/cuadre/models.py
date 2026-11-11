@@ -12,9 +12,10 @@ MONETARY_FIELDS = (
     "sistecredito",
     "addi",
     "coupons_redeemed",
+    "coupons_sold_cash",
+    "coupons_sold_other_method",
     "expenses",
     "sistecredito_collections",
-    "coupons_sold",
 )
 
 INFORMATIONAL_FIELDS = (
@@ -34,14 +35,16 @@ class ReconciliationAmounts:
     sistecredito: int = 0
     addi: int = 0
     coupons_redeemed: int = 0
+    coupons_sold_cash: int = 0
+    coupons_sold_other_method: int = 0
     expenses: int = 0
     sistecredito_collections: int = 0
-    coupons_sold: int = 0
 
     bags: int = 0
     garments: int = 0
     garments_exchange: int = 0
 
+    coupons_sold_other_method_details: str = ""
     field_notes: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -57,6 +60,16 @@ class ReconciliationAmounts:
         if not isinstance(self.field_notes, Mapping):
             raise TypeError("field_notes must be a mapping.")
 
+        if not isinstance(self.coupons_sold_other_method_details, str):
+            raise TypeError("Other coupon payment method details must be text.")
+
+        details = self.coupons_sold_other_method_details.strip()
+
+        if self.coupons_sold_other_method > 0 and not details:
+            raise ValueError(
+                "Payment method details are required for coupons sold through other methods."
+            )
+
         for name, note in self.field_notes.items():
             if name not in ALL_FIELDS:
                 raise ValueError(f"Unknown field note: {name}")
@@ -68,6 +81,11 @@ class ReconciliationAmounts:
             self,
             "field_notes",
             MappingProxyType(dict(self.field_notes)),
+        )
+        object.__setattr__(
+            self,
+            "coupons_sold_other_method_details",
+            details,
         )
 
 

@@ -18,7 +18,9 @@ from cuadre.validation import (
         ("0", 0),
         ("150000", 150000),
         ("150.000", 150000),
+        ("150,000", 150000),
         ("1.250.000", 1250000),
+        ("1,250,000", 1250000),
         (150000, 150000),
     ],
 )
@@ -35,6 +37,8 @@ def test_parse_valid_money(value, expected):
         "12.34",
         "abc",
         "1.000.00",
+        "1.000,000",
+        "1,000.000",
         150.5,
         True,
     ],
@@ -52,6 +56,9 @@ def test_parse_invalid_money(value):
         ("15", 15),
         (15, 15),
         ("1.000", 1000),
+        ("1,000", 1000),
+        ("1.250.000", 1250000),
+        ("1,250,000", 1250000),
     ],
 )
 def test_parse_valid_quantity(value, expected):
@@ -64,6 +71,8 @@ def test_parse_valid_quantity(value, expected):
         "-1",
         "1.5",
         "abc",
+        "1.000,000",
+        "1,000.000",
         1.5,
         True,
     ],
@@ -131,9 +140,10 @@ ALL_RAW_VALUES = {
     "sistecredito": "",
     "addi": None,
     "coupons_redeemed": "5.000",
+    "coupons_sold_cash": "500",
+    "coupons_sold_other_method": "1,000",
     "expenses": "2.000",
     "sistecredito_collections": "1.000",
-    "coupons_sold": "500",
     "bags": "10",
     "garments": "25",
     "garments_exchange": "2",
@@ -141,7 +151,10 @@ ALL_RAW_VALUES = {
 
 
 def test_build_reconciliation_amounts():
-    amounts = build_reconciliation_amounts(ALL_RAW_VALUES)
+    amounts = build_reconciliation_amounts(
+        ALL_RAW_VALUES,
+        coupons_sold_other_method_details="Tarjeta y QR",
+    )
 
     assert amounts.net_sales == 150000
     assert amounts.cards == 20000
@@ -149,9 +162,11 @@ def test_build_reconciliation_amounts():
     assert amounts.sistecredito == 0
     assert amounts.addi == 0
     assert amounts.coupons_redeemed == 5000
+    assert amounts.coupons_sold_cash == 500
+    assert amounts.coupons_sold_other_method == 1000
+    assert amounts.coupons_sold_other_method_details == "Tarjeta y QR"
     assert amounts.expenses == 2000
     assert amounts.sistecredito_collections == 1000
-    assert amounts.coupons_sold == 500
     assert amounts.bags == 10
     assert amounts.garments == 25
     assert amounts.garments_exchange == 2
@@ -161,9 +176,18 @@ def test_build_reconciliation_amounts_preserves_field_notes():
     amounts = build_reconciliation_amounts(
         ALL_RAW_VALUES,
         field_notes={"expenses": "Gasto autorizado"},
+        coupons_sold_other_method_details="Tarjeta",
     )
 
     assert amounts.field_notes["expenses"] == "Gasto autorizado"
+
+
+def test_build_reconciliation_amounts_requires_other_method_details():
+    with pytest.raises(ValueError, match="Payment method details are required"):
+        build_reconciliation_amounts(
+            ALL_RAW_VALUES,
+            coupons_sold_other_method_details="",
+        )
 
 
 def test_build_reconciliation_amounts_rejects_missing_fields():

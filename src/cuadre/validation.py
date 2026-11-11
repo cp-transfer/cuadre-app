@@ -9,7 +9,9 @@ from cuadre.models import (
 )
 
 _INTEGER_PATTERN = re.compile(r"^[0-9]+$")
-_GROUPED_INTEGER_PATTERN = re.compile(r"^[0-9]{1,3}(?:\.[0-9]{3})+$")
+_GROUPED_INTEGER_PATTERN = re.compile(
+    r"^[0-9]{1,3}([.,])[0-9]{3}(?:\1[0-9]{3})*$"
+)
 
 
 def _parse_nonnegative_integer(value: object, field_name: str) -> int:
@@ -39,8 +41,9 @@ def _parse_nonnegative_integer(value: object, field_name: str) -> int:
     if _INTEGER_PATTERN.fullmatch(normalized):
         return int(normalized)
 
-    if _GROUPED_INTEGER_PATTERN.fullmatch(normalized):
-        return int(normalized.replace(".", ""))
+    grouped_match = _GROUPED_INTEGER_PATTERN.fullmatch(normalized)
+    if grouped_match:
+        return int(normalized.replace(grouped_match.group(1), ''))
 
     raise ValueError(f"{field_name} must be a valid nonnegative integer.")
 
@@ -57,6 +60,7 @@ def parse_quantity(value: object, field_name: str = "Quantity") -> int:
 def build_reconciliation_amounts(
     raw_values: Mapping[str, object],
     field_notes: Mapping[str, str] | None = None,
+    coupons_sold_other_method_details: str = "",
 ) -> ReconciliationAmounts:
     """
     Build validated reconciliation amounts from raw input values.
@@ -91,6 +95,7 @@ def build_reconciliation_amounts(
 
     return ReconciliationAmounts(
         **parsed_values,
+        coupons_sold_other_method_details=coupons_sold_other_method_details,
         field_notes={} if field_notes is None else field_notes,
     )
 

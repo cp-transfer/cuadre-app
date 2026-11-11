@@ -13,11 +13,13 @@ def test_normal_reconciliation():
         sistecredito=100_000,
         addi=50_000,
         coupons_redeemed=10_000,
+        coupons_sold_cash=5_000,
+        coupons_sold_other_method=8_000,
+        coupons_sold_other_method_details="Tarjeta y QR",
         expenses=20_000,
         sistecredito_collections=30_000,
-        coupons_sold=5_000,
     )
-    assert calculate_expected_cash(amounts) == 455_000
+    assert calculate_expected_cash(amounts) == 447_000
 
 
 def test_all_zero_values():
@@ -45,6 +47,26 @@ def test_field_notes_do_not_affect_cash():
         field_notes={"net_sales": "Net sales from POS"},
     )
     assert calculate_expected_cash(amounts) == 100_000
+
+
+def test_other_method_coupon_sales_require_payment_details():
+    with pytest.raises(ValueError):
+        ReconciliationAmounts(coupons_sold_other_method=5_000)
+
+
+def test_other_method_coupon_details_are_trimmed():
+    amounts = ReconciliationAmounts(
+        coupons_sold_other_method=5_000,
+        coupons_sold_other_method_details="  Tarjeta y QR  ",
+    )
+    assert amounts.coupons_sold_other_method_details == "Tarjeta y QR"
+
+
+def test_other_method_coupon_details_must_be_text():
+    with pytest.raises(TypeError):
+        ReconciliationAmounts(
+            coupons_sold_other_method_details=123
+        )
 
 
 def test_negative_input_is_rejected():

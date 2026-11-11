@@ -17,9 +17,10 @@ def calculate_expected_cash(amounts: ReconciliationAmounts) -> int:
         - amounts.sistecredito
         - amounts.addi
         - amounts.coupons_redeemed
+        + amounts.coupons_sold_cash
+        - amounts.coupons_sold_other_method
         - amounts.expenses
         + amounts.sistecredito_collections
-        + amounts.coupons_sold
     )
 
 
