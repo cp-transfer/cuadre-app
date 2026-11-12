@@ -1,3 +1,4 @@
+import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,7 +12,11 @@ from cuadre.validation import (
     validate_cash_verification,
 )
 from cuadre.calculations import calculate_expected_cash, format_cop
-
+from cuadre.store_config import (
+    StoreConfigError,
+    load_store_identity,
+    save_store_identity,
+)
 
 LABELS = {
     "net_sales": "Ventas netas",
@@ -26,7 +31,7 @@ LABELS = {
     "sistecredito_collections": "Recaudo Sistecrédito",
     "bags": "Bolsas",
     "garments": "Prendas",
-    "garments_exchange": "Cambios de prendas",
+    "garments_exchange": "Prendas por canje",
 }
 
 INPUT_ORDER = (
@@ -47,10 +52,38 @@ INPUT_ORDER = (
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Prueba manual de cuadre"
+    )
+    parser.add_argument(
+        "--change-store",
+        action="store_true",
+        help="Cambiar la identidad de la tienda guardada",
+    )
+    args = parser.parse_args()
+
     print("\n=== PRUEBA MANUAL DE CUADRE ===\n")
 
-    store_code = input("Código de tienda: ").strip()
-    store_name = input("Nombre de tienda: ").strip()
+    try:
+        saved_identity = (
+            None if args.change_store else load_store_identity()
+        )
+    except StoreConfigError as error:
+        print(f"\nERROR DE CONFIGURACIÓN: {error}")
+        raise SystemExit(1)
+
+    if saved_identity is not None:
+        store_code, store_name = saved_identity
+        print(f"Tienda configurada: {store_name} ({store_code})")
+    else:
+        store_code = input("Código de tienda: ").strip()
+        store_name = input("Nombre de tienda: ").strip()
+
+        try:
+            save_store_identity(store_code, store_name)
+        except (StoreConfigError, ValueError) as error:
+            print(f"\nERROR DE CONFIGURACIÓN: {error}")
+            raise SystemExit(1)
 
     started_at = datetime.now().astimezone()
     reconciliation_date = started_at.date()
@@ -83,6 +116,9 @@ def main():
     print("\n--- DETALLE DE VALORES ---")
 
     for field in INPUT_ORDER:
+        if field == "coupons_sold_other_method":
+            continue
+
         value = getattr(amounts, field)
 
         if field in INFORMATIONAL_FIELDS:
@@ -92,7 +128,8 @@ def main():
 
     if amounts.coupons_sold_other_method > 0:
         print(
-            "Medios de pago de bonos vendidos: "
+            "Otros ingresos: "
+            f"{format_cop(amounts.coupons_sold_other_method)} - "
             f"{amounts.coupons_sold_other_method_details}"
         )
 
@@ -140,6 +177,9 @@ def main():
     print("---------------------------------------")
 
     for field in INPUT_ORDER:
+        if field == "coupons_sold_other_method":
+            continue
+
         value = getattr(amounts, field)
 
         if field in INFORMATIONAL_FIELDS:
@@ -149,7 +189,8 @@ def main():
 
     if amounts.coupons_sold_other_method > 0:
         print(
-            "Medios de pago de bonos vendidos: "
+            "Otros ingresos: "
+            f"{format_cop(amounts.coupons_sold_other_method)} - "
             f"{amounts.coupons_sold_other_method_details}"
         )
 

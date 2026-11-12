@@ -250,3 +250,67 @@ def test_field_notes_copy_source_mapping():
     source_notes["net_sales"] = "Changed"
 
     assert amounts.field_notes["net_sales"] == "POS"
+
+
+def test_reconciliation_employee_name_is_optional():
+    from datetime import date
+
+    from cuadre.models import Reconciliation, ReconciliationAmounts
+
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 12),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(),
+    )
+
+    assert reconciliation.employee_name is None
+
+
+def test_reconciliation_employee_name_is_trimmed():
+    from datetime import date
+
+    from cuadre.models import Reconciliation, ReconciliationAmounts
+
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 12),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(),
+        employee_name="  Ana Pérez  ",
+    )
+
+    assert reconciliation.employee_name == "Ana Pérez"
+
+
+def test_reconciliation_blank_employee_name_becomes_none():
+    from datetime import date
+
+    from cuadre.models import Reconciliation, ReconciliationAmounts
+
+    reconciliation = Reconciliation(
+        date=date(2026, 11, 12),
+        store_code="11",
+        store_name="HIPER",
+        amounts=ReconciliationAmounts(),
+        employee_name="   ",
+    )
+
+    assert reconciliation.employee_name is None
+
+
+def test_reconciliation_rejects_non_text_employee_name():
+    from datetime import date
+
+    import pytest
+
+    from cuadre.models import Reconciliation, ReconciliationAmounts
+
+    with pytest.raises(TypeError, match="Employee name"):
+        Reconciliation(
+            date=date(2026, 11, 12),
+            store_code="11",
+            store_name="HIPER",
+            amounts=ReconciliationAmounts(),
+            employee_name=123,
+        )

@@ -1,4 +1,3 @@
-
 from cuadre.models import ReconciliationAmounts
 
 
@@ -7,6 +6,8 @@ def calculate_expected_cash(amounts: ReconciliationAmounts) -> int:
     Calculate expected cash in whole Colombian pesos.
 
     NET_SALES must already have refunds deducted.
+    Coupons sold through other payment methods are excluded because
+    they are not part of net sales.
     Informational fields do not affect this calculation.
     """
 
@@ -18,7 +19,6 @@ def calculate_expected_cash(amounts: ReconciliationAmounts) -> int:
         - amounts.addi
         - amounts.coupons_redeemed
         + amounts.coupons_sold_cash
-        - amounts.coupons_sold_other_method
         - amounts.expenses
         + amounts.sistecredito_collections
     )

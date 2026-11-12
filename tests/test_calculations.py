@@ -1,4 +1,3 @@
-
 import pytest
 
 from cuadre.models import ReconciliationAmounts
@@ -19,7 +18,7 @@ def test_normal_reconciliation():
         expenses=20_000,
         sistecredito_collections=30_000,
     )
-    assert calculate_expected_cash(amounts) == 447_000
+    assert calculate_expected_cash(amounts) == 455_000
 
 
 def test_all_zero_values():
@@ -90,6 +89,7 @@ def test_float_input_is_rejected():
 def test_format_cop(amount, expected):
     assert format_cop(amount) == expected
 
+
 def test_field_notes_are_immutable():
     amounts = ReconciliationAmounts(
         net_sales=100000,
@@ -98,3 +98,26 @@ def test_field_notes_are_immutable():
 
     with pytest.raises(TypeError):
         amounts.field_notes["net_sales"] = "Changed"
+
+
+def test_other_method_coupon_sales_do_not_change_expected_cash():
+    common_values = {
+        "net_sales": 1_640_000,
+        "cards": 290_000,
+        "qr": 510_000,
+        "addi": 50_000,
+    }
+
+    without_other_method = ReconciliationAmounts(
+        **common_values,
+        coupons_sold_other_method=0,
+    )
+
+    with_other_method = ReconciliationAmounts(
+        **common_values,
+        coupons_sold_other_method=100_000,
+        coupons_sold_other_method_details="QR",
+    )
+
+    assert calculate_expected_cash(without_other_method) == 790_000
+    assert calculate_expected_cash(with_other_method) == 790_000

@@ -118,6 +118,7 @@ class Reconciliation:
     store_name: str
     amounts: ReconciliationAmounts
     cash_verification: Optional[CashVerification] = None
+    employee_name: Optional[str] = None
 
     def __post_init__(self):
         if type(self.date) is not date:
@@ -128,6 +129,15 @@ class Reconciliation:
 
         if not isinstance(self.store_name, str):
             raise TypeError("Store name must be text.")
+
+        if self.employee_name is not None and not isinstance(self.employee_name, str):
+            raise TypeError("Employee name must be text or None.")
+
+        employee_name = (
+            self.employee_name.strip() or None
+            if self.employee_name is not None
+            else None
+        )
 
         store_code = self.store_code.strip()
         store_name = self.store_name.strip()
@@ -163,6 +173,7 @@ class Reconciliation:
 
         object.__setattr__(self, "store_code", store_code)
         object.__setattr__(self, "store_name", store_name)
+        object.__setattr__(self, "employee_name", employee_name)
 
     @property
     def is_complete(self) -> bool:

@@ -39,11 +39,11 @@ Each reconciliation must contain the following fields:
 Coupon sales must be recorded separately according to payment method:
 
 - COUPONS_SOLD_CASH increases expected cash.
-- COUPONS_SOLD_OTHER_METHOD decreases expected cash.
-- When COUPONS_SOLD_OTHER_METHOD is greater than zero, an explanatory detail is mandatory.
+- COUPONS_SOLD_OTHER_METHOD does not affect expected cash because these sales are not part of NET_SALES.
+- When COUPONS_SOLD_OTHER_METHOD is greater than zero, explanatory payment method details are mandatory.
 - No detail is required when COUPONS_SOLD_OTHER_METHOD is zero.
 
-The details must be preserved with the reconciliation.
+The amount and explanatory details must be preserved with the reconciliation.
 
 ### 2.2 Field Notes
 
@@ -54,6 +54,27 @@ Notes are independent of field values and must not affect accounting calculation
 They allow employees to explain unusual values, provide context or document relevant circumstances.
 
 Notes must be preserved in the submitted reconciliation.
+
+### 2.3 Employee Identification
+
+Employee identification is optional reconciliation metadata.
+
+- Employee name is not required for preview, consultation or printing.
+- If an employee name is available, it must be preserved with the reconciliation.
+- When the employee initiates NTFY sending without an employee name, the application must request it before sending.
+- Employee identification must not block ordinary reconciliation workflows.
+
+### 2.4 Store Identification
+
+Each installation must maintain its store code and store name.
+
+- Store identity must be requested during the first run.
+- Valid saved store identity must load automatically on subsequent runs.
+- Store identity must be editable through an explicit change-store action.
+- Store configuration must be stored per operating-system user, outside the application repository.
+- Only store code and store name may be persisted in this configuration.
+- Employee information must never be stored in the store configuration.
+- Invalid or corrupted configuration must produce an explicit error rather than silently resetting the identity.
 
 ## 3. Expected Cash Calculation
 
@@ -68,7 +89,6 @@ EXPECTED_CASH = NET_SALES
 - ADDI
 - COUPONS_REDEEMED
 + COUPONS_SOLD_CASH
-- COUPONS_SOLD_OTHER_METHOD
 - EXPENSES
 + SISTECREDITO_COLLECTIONS
 
@@ -239,6 +259,7 @@ The report must include:
 - Reconciliation date.
 - Store identification.
 - All monetary fields.
+- COUPONS_SOLD_OTHER_METHOD must appear once as a combined "Otros ingresos" line, including its amount and employee-entered payment method details.
 - Informational fields.
 - Individual field notes.
 - Expected cash.
@@ -275,8 +296,6 @@ Graphical interface, database persistence, PDF generation, NTFY integration and 
 
 The following must be clarified before implementing the corresponding functionality:
 
-- Definitive store identification and employee identification requirements.
-- Whether employee identification is mandatory for every submission.
 - Exact correction and approval workflow.
 - Whether the central recipient is fixed or configurable.
 - Exact NTFY notification format and delivery behavior.
