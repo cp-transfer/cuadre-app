@@ -1,4 +1,3 @@
-
 import pytest
 
 from cuadre.validation import (
@@ -211,3 +210,39 @@ def test_build_reconciliation_amounts_rejects_invalid_values():
 
     with pytest.raises(ValueError):
         build_reconciliation_amounts(raw_values)
+
+
+def test_parse_money_rejects_false():
+    with pytest.raises(ValueError):
+        parse_money(False)
+
+
+def test_parse_quantity_rejects_false():
+    with pytest.raises(ValueError):
+        parse_quantity(False)
+
+
+def test_build_reconciliation_amounts_allows_zero_other_method_coupons_without_details():
+    raw_values = {
+        **ALL_RAW_VALUES,
+        "coupons_sold_other_method": "0",
+    }
+
+    amounts = build_reconciliation_amounts(raw_values)
+
+    assert amounts.coupons_sold_other_method == 0
+    assert amounts.coupons_sold_other_method_details == ""
+
+
+@pytest.mark.parametrize("field", ALL_RAW_VALUES)
+def test_build_reconciliation_amounts_rejects_malformed_values_for_every_field(field):
+    raw_values = {
+        **ALL_RAW_VALUES,
+        field: "invalid",
+    }
+
+    with pytest.raises(ValueError):
+        build_reconciliation_amounts(
+            raw_values,
+            coupons_sold_other_method_details="Tarjeta",
+        )

@@ -55,6 +55,8 @@ def test_reconciliation_rejects_datetime():
         ("11", "   "),
     ],
 )
+
+
 def test_reconciliation_rejects_empty_store_identity(
     store_code,
     store_name,
@@ -223,3 +225,28 @@ def test_field_notes_remain_part_of_equality():
     )
 
     assert first != second
+
+
+from cuadre.models import MONETARY_FIELDS
+
+
+@pytest.mark.parametrize("field", MONETARY_FIELDS)
+def test_all_monetary_fields_reject_negative_values(field):
+    with pytest.raises(ValueError):
+        ReconciliationAmounts(**{field: -1})
+
+
+def test_field_notes_reject_unknown_fields():
+    with pytest.raises(ValueError):
+        ReconciliationAmounts(
+            field_notes={"unknown_field": "Invalid note"},
+        )
+
+
+def test_field_notes_copy_source_mapping():
+    source_notes = {"net_sales": "POS"}
+
+    amounts = ReconciliationAmounts(field_notes=source_notes)
+    source_notes["net_sales"] = "Changed"
+
+    assert amounts.field_notes["net_sales"] == "POS"
