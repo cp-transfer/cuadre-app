@@ -2,7 +2,7 @@
 
 **Project:** CP Company  
 **Instance:** 1 — Core Reconciliation Engine  
-**Status:** Initial specification
+**Status:** Core reconciliation engine implemented — Phase 2 audit in progress
 
 ## 1. Purpose
 
@@ -28,12 +28,24 @@ Each reconciliation must contain the following fields:
 | COUPONS_REDEEMED | Redeemed coupons | Monetary |
 | EXPENSES | Store expenses | Monetary |
 | SISTECREDITO_COLLECTIONS | Sistecrédito collections | Monetary |
-| COUPONS_SOLD | Coupons sold | Monetary |
+| COUPONS_SOLD_CASH | Coupons sold and paid in cash | Monetary |
+| COUPONS_SOLD_OTHER_METHOD | Coupons sold and paid using another payment method | Monetary |
 | BAGS | Bolsas | Integer |
 | GARMENTS | Prendas | Integer |
 | GARMENTS_EXCHANGE | Prendas por Canje | Integer |
 
-### 2.1 Field Notes
+### 2.1 Coupon Sales Details
+
+Coupon sales must be recorded separately according to payment method:
+
+- COUPONS_SOLD_CASH increases expected cash.
+- COUPONS_SOLD_OTHER_METHOD decreases expected cash.
+- When COUPONS_SOLD_OTHER_METHOD is greater than zero, an explanatory detail is mandatory.
+- No detail is required when COUPONS_SOLD_OTHER_METHOD is zero.
+
+The details must be preserved with the reconciliation.
+
+### 2.2 Field Notes
 
 Every field must support an optional explanatory note.
 
@@ -55,9 +67,10 @@ EXPECTED_CASH = NET_SALES
 - SISTECREDITO
 - ADDI
 - COUPONS_REDEEMED
++ COUPONS_SOLD_CASH
+- COUPONS_SOLD_OTHER_METHOD
 - EXPENSES
 + SISTECREDITO_COLLECTIONS
-+ COUPONS_SOLD
 
 BAGS, GARMENTS and GARMENTS_EXCHANGE are informational fields and do not affect expected cash.
 
