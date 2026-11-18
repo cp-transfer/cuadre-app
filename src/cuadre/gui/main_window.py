@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from cuadre.calculations import calculate_expected_cash
+from cuadre.gui.reconciliation_preview import ReconciliationPreview
+from cuadre.gui.cash_verification import CashVerificationWidget
+from cuadre.models import Reconciliation
+from cuadre.validation import build_reconciliation_amounts
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -32,6 +37,7 @@ from cuadre.store_config import (
     load_store_identity,
     save_store_identity,
 )
+from cuadre.gui.question_flow import QuestionFlow
 
 
 class MainWindow(QMainWindow):
@@ -42,6 +48,14 @@ class MainWindow(QMainWindow):
         self.store_code = store_code
         self.store_name = store_name
         self.zoom = DEFAULT_ZOOM
+        self.reconciliation_values = None
+        self.reconciliation_notes = None
+        self.other_method_details = ""
+        self.reconciliation_amounts = None
+        self.expected_cash = None
+        self.reconciliation = None
+        self.cash_verification_widget = None
+        self.preview_widget = None
 
         self.setWindowTitle("Cuadre · C.P. COMPANY")
         self.resize(1180, 780)
@@ -102,13 +116,9 @@ class MainWindow(QMainWindow):
         content_layout = QVBoxLayout(content)
         self.content_layout = content_layout
         content_layout.setContentsMargins(28, 28, 28, 28)
-        self.content_placeholder = QLabel(
-            "La interfaz de conciliación se implementará en el siguiente hito."
-        )
-        self.content_placeholder.setObjectName("placeholderText")
-        self.content_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.content_placeholder.setWordWrap(True)
-        content_layout.addWidget(self.content_placeholder)
+        self.question_flow = QuestionFlow(content)
+        self.question_flow.completed.connect(self._on_questions_completed)
+        content_layout.addWidget(self.question_flow)
         root_layout.addWidget(content, 1)
 
         footer = QHBoxLayout()
@@ -137,6 +147,65 @@ class MainWindow(QMainWindow):
         )
         self.date_label.setText(now.strftime("Fecha: %d/%m/%Y"))
         self.time_label.setText(now.strftime("Hora: %H:%M"))
+
+    def _on_questions_completed(
+        self,
+        values: dict[str, int],
+        notes: dict[str, str],
+        other_method_details: str,
+    ) -> None:
+        self.reconciliation_values = values
+        self.reconciliation_notes = notes
+        self.other_method_details = other_method_details
+
+        try:
+            self.reconciliation_amounts = build_reconciliation_amounts(
+                raw_values=values,
+                field_notes=notes,
+                coupons_sold_other_method_details=other_method_details,
+            )
+            self.expected_cash = calculate_expected_cash(
+                self.reconciliation_amounts
+            )
+        except (TypeError, ValueError) as error:
+            QMessageBox.critical(
+                self,
+                "Error en los datos",
+                f"No fue posible preparar la conciliación: {error}",
+            )
+            return
+
+        self.question_flow.hide()
+        self.content_layout.removeWidget(self.question_flow)
+        self.question_flow.deleteLater()
+
+        self.cash_verification_widget = CashVerificationWidget(
+            self.expected_cash,
+            self,
+        )
+        self.cash_verification_widget.completed.connect(
+            self._on_cash_verification_completed
+        )
+        self.content_layout.addWidget(self.cash_verification_widget)
+
+    def _on_cash_verification_completed(self, verification) -> None:
+        self.reconciliation = Reconciliation(
+            date=datetime.now().astimezone().date(),
+            store_code=self.store_code,
+            store_name=self.store_name,
+            amounts=self.reconciliation_amounts,
+            cash_verification=verification,
+        )
+
+        self.cash_verification_widget.hide()
+        self.content_layout.removeWidget(self.cash_verification_widget)
+        self.cash_verification_widget.deleteLater()
+
+        self.preview_widget = ReconciliationPreview(
+            self.reconciliation,
+            self,
+        )
+        self.content_layout.addWidget(self.preview_widget)
 
     def _set_zoom(self, value: int) -> None:
         self.zoom = clamp_zoom(value)
