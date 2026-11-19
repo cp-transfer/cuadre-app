@@ -1,6 +1,9 @@
 
 """Read-only reconciliation preview widget."""
 
+from dataclasses import replace
+from datetime import datetime
+
 from PySide6.QtCore import Qt, QStandardPaths
 from cuadre.storage.history import save_submission
 from PySide6.QtWidgets import (
@@ -11,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QMessageBox,
     QPushButton,
+    QInputDialog,
 )
 
 from cuadre.calculations import calculate_expected_cash, format_cop
@@ -144,6 +148,10 @@ class ReconciliationPreview(QWidget):
         self.print_button.clicked.connect(self._print_reconciliation)
         layout.addWidget(self.print_button)
 
+        self.notify_button = QPushButton("Notificar")
+        self.notify_button.clicked.connect(self._notify_reconciliation)
+        layout.addWidget(self.notify_button)
+
     def _print_reconciliation(self) -> None:
         from cuadre.printing.system_printer import print_reconciliation
 
@@ -195,6 +203,135 @@ class ReconciliationPreview(QWidget):
                 )
 
         finally:
+            self.print_button.setEnabled(True)
+
+
+    def _build_notification_message(self, reconciliation, submitted_at):
+        amounts = reconciliation.amounts
+        verification = reconciliation.cash_verification
+        expected_cash = calculate_expected_cash(amounts)
+
+        lines = [
+            f"CP COMPANY · {reconciliation.store_code} {reconciliation.store_name}",
+            f"{reconciliation.date:%d/%m/%Y} · {submitted_at:%H:%M}",
+            f"NOMBRE: {reconciliation.employee_name}",
+            "",
+            "RESUMEN",
+            f"Ventas netas: {format_cop(amounts.net_sales)}",
+            f"Efectivo esp.: {format_cop(expected_cash)}",
+            f"Verificación: {'OK' if verification.matches_expected else 'NO COINCIDE'}",
+            "",
+            "BONOS",
+            f"Vendidos en efectivo: {format_cop(amounts.coupons_sold_cash)}",
+            f"Vendidos por otro medio: {format_cop(amounts.coupons_sold_other_method)}",
+        ]
+
+        if amounts.coupons_sold_other_method_details:
+            lines.append(
+                f"Detalle otros medios: {amounts.coupons_sold_other_method_details}"
+            )
+
+        lines.extend([
+            f"Redimidos: {format_cop(amounts.coupons_redeemed)}",
+            "",
+            "PAGOS",
+            f"QR: {format_cop(amounts.qr)}",
+            f"Tarjeta: {format_cop(amounts.cards)}",
+            f"Sistecrédito: {format_cop(amounts.sistecredito)}",
+            f"Addi: {format_cop(amounts.addi)}",
+            "",
+            "GASTOS / RECAUDOS",
+            f"Gastos: {format_cop(amounts.expenses)}",
+            f"Recaudo SC: {format_cop(amounts.sistecredito_collections)}",
+            "",
+            "OPERACIÓN",
+            f"Bolsas: {amounts.bags}",
+            f"Prendas: {amounts.garments}",
+            f"Canjes: {amounts.garments_exchange}",
+        ])
+
+        if verification.discrepancy_note:
+            lines.extend(["", "DIFERENCIA DE EFECTIVO", verification.discrepancy_note])
+
+        lines.extend(["", "NOTAS"])
+        notes = [f"{name}: {note}" for name, note in amounts.field_notes.items() if note]
+        lines.extend(notes or ["Sin novedades"])
+        return "\n".join(lines)
+
+    def _notify_reconciliation(self) -> None:
+        from cuadre.ntfy import send_notification
+        from cuadre.printing.system_printer import print_reconciliation
+
+        reconciliation = self.reconciliation
+
+        if not reconciliation.employee_name:
+            name, accepted = QInputDialog.getText(
+                self, "Nombre", "Nombre de quien realiza el cuadre:"
+            )
+            if not accepted or not name.strip():
+                return
+            reconciliation = replace(reconciliation, employee_name=name.strip())
+
+        self.notify_button.setEnabled(False)
+        self.print_button.setEnabled(False)
+
+        try:
+            downloads_dir = QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.DownloadLocation
+            )
+            if not downloads_dir:
+                QMessageBox.critical(
+                    self, "Error al guardar el historial",
+                    "No fue posible localizar la carpeta de Descargas.",
+                )
+                return
+
+            submitted_at = datetime.now().astimezone()
+            try:
+                archive_path = save_submission(
+                    reconciliation, downloads_dir, submitted_at=submitted_at
+                )
+            except (RuntimeError, ValueError, OSError) as error:
+                QMessageBox.critical(self, "Error al guardar el historial", str(error))
+                return
+
+            try:
+                print_result = print_reconciliation(reconciliation)
+            except (RuntimeError, ValueError, OSError) as error:
+                QMessageBox.critical(
+                    self, "Error de impresión",
+                    f"El historial se guardó en:\n{archive_path}"
+                    f"\n\nNo se envió la notificación porque falló la impresión:\n{error}",
+                )
+                return
+
+            title = (
+                f"CP COMPANY · {reconciliation.store_code} "
+                f"{reconciliation.store_name}"
+            )
+            message = self._build_notification_message(reconciliation, submitted_at)
+
+            try:
+                notification_result = send_notification(title, message)
+            except (RuntimeError, OSError) as error:
+                QMessageBox.critical(
+                    self, "Error de notificación",
+                    f"El historial se guardó y el documento se imprimió."
+                    f"\n\nHistorial:\n{archive_path}"
+                    f"\n\nImpresión:\n{print_result}"
+                    f"\n\nPero NTFY falló:\n{error}",
+                )
+                return
+
+            QMessageBox.information(
+                self, "Conciliación notificada",
+                f"El historial se guardó, el documento se imprimió "
+                f"y la notificación fue enviada."
+                f"\n\nHistorial:\n{archive_path}"
+                f"\n\n{print_result}\n{notification_result}",
+            )
+        finally:
+            self.notify_button.setEnabled(True)
             self.print_button.setEnabled(True)
 
     @staticmethod
