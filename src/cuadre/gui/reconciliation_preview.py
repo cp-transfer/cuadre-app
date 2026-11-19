@@ -1,7 +1,8 @@
 
 """Read-only reconciliation preview widget."""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QStandardPaths
+from cuadre.storage.history import save_submission
 from PySide6.QtWidgets import (
     QFrame,
     QLabel,
@@ -149,19 +150,50 @@ class ReconciliationPreview(QWidget):
         self.print_button.setEnabled(False)
 
         try:
-            result = print_reconciliation(self.reconciliation)
-        except (RuntimeError, ValueError, OSError) as error:
-            QMessageBox.critical(
-                self,
-                "Error de impresión",
-                str(error),
-            )
-        else:
-            QMessageBox.information(
-                self,
-                "Impresión",
-                f"El documento se envió a la cola de impresión.\n\n{result}",
-            )
+            try:
+                downloads_dir = QStandardPaths.writableLocation(
+                    QStandardPaths.StandardLocation.DownloadLocation
+                )
+
+                if not downloads_dir:
+                    raise RuntimeError(
+                        "No fue posible localizar la carpeta de Descargas."
+                    )
+
+                archive_path = save_submission(
+                    self.reconciliation,
+                    downloads_dir,
+                )
+
+            except (RuntimeError, ValueError, OSError) as error:
+                QMessageBox.critical(
+                    self,
+                    "Error al guardar el historial",
+                    str(error),
+                )
+                return
+
+            try:
+                result = print_reconciliation(self.reconciliation)
+
+            except (RuntimeError, ValueError, OSError) as error:
+                QMessageBox.critical(
+                    self,
+                    "Error de impresión",
+                    f"El historial se guardó correctamente en:\n"
+                    f"{archive_path}\n\n"
+                    f"Pero no fue posible imprimir:\n{error}",
+                )
+
+            else:
+                QMessageBox.information(
+                    self,
+                    "Impresión",
+                    f"El documento se envió a la cola de impresión.\n\n"
+                    f"Historial guardado en:\n{archive_path}\n\n"
+                    f"{result}",
+                )
+
         finally:
             self.print_button.setEnabled(True)
 

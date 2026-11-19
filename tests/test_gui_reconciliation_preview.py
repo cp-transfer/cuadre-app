@@ -115,3 +115,87 @@ def test_preview_requires_cash_verification(qapp):
     with pytest.raises(ValueError):
         ReconciliationPreview(reconciliation)
 
+def test_print_archives_before_printing(qapp, monkeypatch):
+    import cuadre.gui.reconciliation_preview as preview_module
+    from cuadre.printing import system_printer
+
+    events = []
+    archive_path = "/downloads/Cuadre/Historial/test-archive"
+
+    def fake_save(reconciliation, downloads_dir):
+        events.append("archive")
+        assert downloads_dir
+        return archive_path
+
+    def fake_print(reconciliation):
+        events.append("print")
+        return "Job sent"
+
+    monkeypatch.setattr(preview_module, "save_submission", fake_save)
+    monkeypatch.setattr(
+        system_printer, "print_reconciliation", fake_print
+    )
+    monkeypatch.setattr(
+        preview_module.QMessageBox, "information", lambda *args: None
+    )
+
+    widget = ReconciliationPreview(make_reconciliation())
+    widget._print_reconciliation()
+
+    assert events == ["archive", "print"]
+    assert widget.print_button.isEnabled()
+
+
+def test_print_does_not_print_if_archive_fails(qapp, monkeypatch):
+    import cuadre.gui.reconciliation_preview as preview_module
+    from cuadre.printing import system_printer
+
+    def fail_save(*args):
+        raise OSError("Disk error")
+
+    def unexpected_print(*args):
+        pytest.fail("Printing must not happen if archiving fails")
+
+    monkeypatch.setattr(preview_module, "save_submission", fail_save)
+    monkeypatch.setattr(
+        system_printer, "print_reconciliation", unexpected_print
+    )
+    monkeypatch.setattr(
+        preview_module.QMessageBox, "critical", lambda *args: None
+    )
+
+    widget = ReconciliationPreview(make_reconciliation())
+    widget._print_reconciliation()
+
+    assert widget.print_button.isEnabled()
+
+
+def test_print_failure_preserves_archive(qapp, monkeypatch):
+    import cuadre.gui.reconciliation_preview as preview_module
+    from cuadre.printing import system_printer
+
+    archive_path = "/downloads/Cuadre/Historial/test-archive"
+    messages = []
+
+    def fake_save(*args):
+        return archive_path
+
+    def fail_print(*args):
+        raise RuntimeError("Printer unavailable")
+
+    monkeypatch.setattr(preview_module, "save_submission", fake_save)
+    monkeypatch.setattr(
+        system_printer, "print_reconciliation", fail_print
+    )
+    monkeypatch.setattr(
+        preview_module.QMessageBox,
+        "critical",
+        lambda *args: messages.append(args),
+    )
+
+    widget = ReconciliationPreview(make_reconciliation())
+    widget._print_reconciliation()
+
+    assert widget.print_button.isEnabled()
+    assert archive_path in messages[0][2]
+    assert "Printer unavailable" in messages[0][2]
