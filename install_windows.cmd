@@ -15,7 +15,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3,12) else 1)"
+py -3 -c "import sys; assert sys.version_info.major*100+sys.version_info.minor>=312"
 if errorlevel 1 (
     echo ERROR: Python 3.12 or newer is required.
     exit /b 1
@@ -24,12 +24,15 @@ if errorlevel 1 (
 if not exist ".venv\Scripts\python.exe" (
     echo Creating virtual environment...
     py -3 -m venv .venv
-    if errorlevel 1 exit /b 1
+    if errorlevel 1 (
+        echo ERROR: Could not create the virtual environment.
+        exit /b 1
+    )
 )
 
 set "PYTHON=.venv\Scripts\python.exe"
 
-"%PYTHON%" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,12) else 1)"
+"%PYTHON%" -c "import sys; assert sys.version_info.major*100+sys.version_info.minor>=312"
 if errorlevel 1 (
     echo ERROR: The existing virtual environment is invalid or uses Python older than 3.12.
     echo Delete the .venv folder and run this installer again.
