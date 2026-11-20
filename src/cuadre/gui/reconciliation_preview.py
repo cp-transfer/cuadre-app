@@ -3,6 +3,7 @@
 
 from dataclasses import replace
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QStandardPaths
 from cuadre.storage.history import save_submission
@@ -182,7 +183,7 @@ class ReconciliationPreview(QWidget):
                 return
 
             try:
-                result = print_reconciliation(self.reconciliation)
+                result = print_reconciliation(Path(archive_path) / "report.pdf")
 
             except (RuntimeError, ValueError, OSError) as error:
                 QMessageBox.critical(
@@ -270,7 +271,10 @@ class ReconciliationPreview(QWidget):
             )
             if not accepted or not name.strip():
                 return
-            reconciliation = replace(reconciliation, employee_name=name.strip())
+            reconciliation = replace(
+                reconciliation,
+                employee_name=name.strip(),
+            )
 
         self.notify_button.setEnabled(False)
         self.print_button.setEnabled(False)
@@ -281,55 +285,88 @@ class ReconciliationPreview(QWidget):
             )
             if not downloads_dir:
                 QMessageBox.critical(
-                    self, "Error al guardar el historial",
+                    self,
+                    "Error al guardar el historial",
                     "No fue posible localizar la carpeta de Descargas.",
                 )
                 return
 
             submitted_at = datetime.now().astimezone()
-            try:
-                archive_path = save_submission(
-                    reconciliation, downloads_dir, submitted_at=submitted_at
-                )
-            except (RuntimeError, ValueError, OSError) as error:
-                QMessageBox.critical(self, "Error al guardar el historial", str(error))
-                return
 
             try:
-                print_result = print_reconciliation(reconciliation)
+                archive_path = save_submission(
+                    reconciliation,
+                    downloads_dir,
+                    submitted_at=submitted_at,
+                )
             except (RuntimeError, ValueError, OSError) as error:
                 QMessageBox.critical(
-                    self, "Error de impresión",
-                    f"El historial se guardó en:\n{archive_path}"
-                    f"\n\nNo se envió la notificación porque falló la impresión:\n{error}",
+                    self,
+                    "Error al guardar el historial",
+                    str(error),
                 )
                 return
+
+            # Printing failure must not prevent NTFY.
+            print_result = None
+            print_error = None
+
+            try:
+                print_result = print_reconciliation(
+                    Path(archive_path) / "report.pdf"
+                )
+            except (RuntimeError, ValueError, OSError) as error:
+                print_error = str(error)
 
             title = (
                 f"CP COMPANY · {reconciliation.store_code} "
                 f"{reconciliation.store_name}"
             )
-            message = self._build_notification_message(reconciliation, submitted_at)
+            message = self._build_notification_message(
+                reconciliation,
+                submitted_at,
+            )
 
             try:
                 notification_result = send_notification(title, message)
             except (RuntimeError, OSError) as error:
+                details = (
+                    f"El historial se guardó en:\n{archive_path}"
+                    f"\n\nNTFY falló:\n{error}"
+                )
+                if print_error:
+                    details += (
+                        f"\n\nLa impresión también falló:\n{print_error}"
+                    )
+                else:
+                    details += f"\n\nImpresión:\n{print_result}"
+
                 QMessageBox.critical(
-                    self, "Error de notificación",
-                    f"El historial se guardó y el documento se imprimió."
-                    f"\n\nHistorial:\n{archive_path}"
-                    f"\n\nImpresión:\n{print_result}"
-                    f"\n\nPero NTFY falló:\n{error}",
+                    self,
+                    "Error de notificación",
+                    details,
                 )
                 return
 
-            QMessageBox.information(
-                self, "Conciliación notificada",
-                f"El historial se guardó, el documento se imprimió "
-                f"y la notificación fue enviada."
+            details = (
+                "El historial se guardó y la notificación fue enviada."
                 f"\n\nHistorial:\n{archive_path}"
-                f"\n\n{print_result}\n{notification_result}",
+                f"\n\n{notification_result}"
             )
+
+            if print_error:
+                details += (
+                    f"\n\nNo fue posible imprimir:\n{print_error}"
+                )
+            else:
+                details += f"\n\n{print_result}"
+
+            QMessageBox.information(
+                self,
+                "Conciliación notificada",
+                details,
+            )
+
         finally:
             self.notify_button.setEnabled(True)
             self.print_button.setEnabled(True)

@@ -199,3 +199,74 @@ def test_print_failure_preserves_archive(qapp, monkeypatch):
     assert widget.print_button.isEnabled()
     assert archive_path in messages[0][2]
     assert "Printer unavailable" in messages[0][2]
+
+
+def test_notify_continues_when_printing_fails(qapp, monkeypatch):
+    from pathlib import Path
+
+    import cuadre.gui.reconciliation_preview as preview_module
+    import cuadre.ntfy as ntfy_module
+    from cuadre.printing import system_printer
+
+    archive_path = Path("/downloads/Cuadre/Historial/ntfy-test")
+    events = []
+    dialogs = []
+
+    def fake_save(reconciliation, downloads_dir, submitted_at=None):
+        events.append("archive")
+        assert submitted_at is not None
+        return archive_path
+
+    def fake_print(pdf_path):
+        events.append("print")
+        assert Path(pdf_path) == archive_path / "report.pdf"
+        raise RuntimeError("Printer unavailable")
+
+    def fake_notify(title, message):
+        events.append("notify")
+        assert title.startswith("CP COMPANY")
+        assert message.strip()
+        return "Notification sent"
+
+    monkeypatch.setattr(
+        preview_module.QStandardPaths,
+        "writableLocation",
+        lambda *args: "/downloads",
+    )
+    monkeypatch.setattr(
+        preview_module.QInputDialog,
+        "getText",
+        lambda *args: ("Test Employee", True),
+    )
+    monkeypatch.setattr(preview_module, "save_submission", fake_save)
+    monkeypatch.setattr(
+        system_printer,
+        "print_reconciliation",
+        fake_print,
+    )
+    monkeypatch.setattr(
+        ntfy_module,
+        "send_notification",
+        fake_notify,
+    )
+    monkeypatch.setattr(
+        preview_module.QMessageBox,
+        "information",
+        lambda *args: dialogs.append(args),
+    )
+    monkeypatch.setattr(
+        preview_module.QMessageBox,
+        "critical",
+        lambda *args: dialogs.append(args),
+    )
+
+    widget = preview_module.ReconciliationPreview(make_reconciliation())
+    widget._notify_reconciliation()
+
+    assert events == ["archive", "print", "notify"]
+    assert widget.notify_button.isEnabled()
+    assert widget.print_button.isEnabled()
+    assert len(dialogs) == 1
+    assert "Notification sent" in dialogs[0][2]
+    assert "Printer unavailable" in dialogs[0][2]
+    assert str(archive_path) in dialogs[0][2]
