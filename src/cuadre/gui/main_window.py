@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from cuadre.calculations import calculate_expected_cash
 from cuadre.gui.reconciliation_preview import ReconciliationPreview
@@ -10,9 +11,10 @@ from cuadre.gui.cash_verification import CashVerificationWidget
 from cuadre.models import Reconciliation
 from cuadre.validation import build_reconciliation_amounts
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -84,9 +86,25 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(20, 16, 20, 16)
         header_layout.setSpacing(7)
 
-        self.brand_label = QLabel("C.P. COMPANY")
+        self.brand_label = QLabel()
         self.brand_label.setObjectName("brandPlaceholder")
         self.brand_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        header_logo = Path(__file__).resolve().parents[1] / "assets" / "logos" / "logo_header.png"
+        if header_logo.is_file():
+            pixmap = QPixmap(str(header_logo))
+            if not pixmap.isNull():
+                self.brand_label.setPixmap(
+                    pixmap.scaled(
+                        200,
+                        80,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+        else:
+            self.brand_label.setText("C.P. COMPANY")
+
         header_layout.addWidget(self.brand_label)
 
         self.store_label = QLabel()
@@ -103,7 +121,7 @@ class MainWindow(QMainWindow):
         metadata_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.date_label = QLabel()
         self.time_label = QLabel()
-        self.employee_label = QLabel("Empleado: —")
+        self.employee_label = QLabel("Nombre: —")
         for label in (self.date_label, self.time_label, self.employee_label):
             label.setObjectName("metadata")
             metadata_row.addWidget(label)
@@ -121,21 +139,80 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.question_flow)
         root_layout.addWidget(content, 1)
 
-        footer = QHBoxLayout()
+        footer_frame = QFrame ()
+        footer_frame.setObjectName("footer")
+
+        footer = QGridLayout(footer_frame)
         self.footer_layout = footer
-        footer.addStretch(1)
+        footer.setContentsMargins(16, 8, 16, 8)
+        footer.setColumnStretch(0, 1)
+        footer.setColumnStretch(2, 1)
+
+        footer_center = QWidget()
+        footer_center.setObjectName("footerCenter")
+        footer_center_layout = QVBoxLayout(footer_center)
+        footer_center_layout.setContentsMargins(0, 0, 0, 0)
+        footer_center_layout.setSpacing(2)
+
+        self.footer_logo_label = QLabel()
+        self.footer_logo_label.setObjectName("footerLogo")
+        self.footer_logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_logo = Path(__file__).resolve().parents[1] / "assets" / "logos" / "logo_w_footer.png"
+        if footer_logo.is_file():
+            pixmap = QPixmap(str(footer_logo))
+            if not pixmap.isNull():
+                self.footer_logo_label.setPixmap(
+                    pixmap.scaledToWidth(
+                        200,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+        footer_center_layout.addWidget(self.footer_logo_label)
+
+        self.footer_text_label = QLabel(
+            "C . P .  C O M P A N Y - 1 9 8 5"
+        )
+        self.footer_text_label.setObjectName("footerText")
+        self.footer_text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_center_layout.addWidget(self.footer_text_label)
+
+        footer.addWidget(
+            footer_center,
+            0,
+            1,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+
+        zoom_controls = QWidget()
+        zoom_controls.setObjectName("zoomControls")
+        zoom_controls_layout = QHBoxLayout(zoom_controls)
+        zoom_controls_layout.setContentsMargins(0, 0, 0, 0)
+        zoom_controls_layout.setSpacing(8)
+
         self.zoom_out_button = QPushButton("−")
         self.zoom_out_button.setToolTip("Reducir tamaño de interfaz")
-        self.zoom_out_button.clicked.connect(lambda: self._set_zoom(self.zoom - ZOOM_STEP))
+        self.zoom_out_button.clicked.connect(
+            lambda: self._set_zoom(self.zoom - ZOOM_STEP)
+        )
         self.zoom_label = QLabel("100 %")
         self.zoom_label.setObjectName("zoomLabel")
         self.zoom_in_button = QPushButton("+")
         self.zoom_in_button.setToolTip("Aumentar tamaño de interfaz")
-        self.zoom_in_button.clicked.connect(lambda: self._set_zoom(self.zoom + ZOOM_STEP))
-        footer.addWidget(self.zoom_out_button)
-        footer.addWidget(self.zoom_label)
-        footer.addWidget(self.zoom_in_button)
-        root_layout.addLayout(footer)
+        self.zoom_in_button.clicked.connect(
+            lambda: self._set_zoom(self.zoom + ZOOM_STEP)
+        )
+
+        zoom_controls_layout.addWidget(self.zoom_out_button)
+        zoom_controls_layout.addWidget(self.zoom_label)
+        zoom_controls_layout.addWidget(self.zoom_in_button)
+        footer.addWidget(
+            zoom_controls,
+            0,
+            2,
+            alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+        )
+
+        root_layout.addWidget(footer_frame)
 
         self.setCentralWidget(root)
         self._refresh_header_metadata()

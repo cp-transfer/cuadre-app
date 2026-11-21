@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QStandardPaths
 from cuadre.storage.history import save_submission
 from PySide6.QtWidgets import (
     QFrame,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
     QVBoxLayout,
@@ -43,11 +44,11 @@ class ReconciliationPreview(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(6)
 
         title = QLabel("Vista previa de conciliación")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setObjectName("screenTitle")
+        title.setObjectName("previewTitle")
         layout.addWidget(title)
 
         scroll = QScrollArea()
@@ -56,7 +57,8 @@ class ReconciliationPreview(QWidget):
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(12, 8, 12, 8)
+        content_layout.setSpacing(3)
 
         self._add_section_title(content_layout, "Información de la tienda")
 
@@ -145,13 +147,20 @@ class ReconciliationPreview(QWidget):
         scroll.setWidget(content)
         layout.addWidget(scroll)
 
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+
         self.print_button = QPushButton("Imprimir")
+        self.print_button.setObjectName("printButton")
         self.print_button.clicked.connect(self._print_reconciliation)
-        layout.addWidget(self.print_button)
 
         self.notify_button = QPushButton("Notificar")
+        self.notify_button.setObjectName("notifyButton")
         self.notify_button.clicked.connect(self._notify_reconciliation)
-        layout.addWidget(self.notify_button)
+
+        actions.addWidget(self.print_button)
+        actions.addWidget(self.notify_button)
+        layout.addLayout(actions)
 
     def _print_reconciliation(self) -> None:
         from cuadre.printing.system_printer import print_reconciliation
@@ -374,7 +383,7 @@ class ReconciliationPreview(QWidget):
     @staticmethod
     def _add_section_title(layout: QVBoxLayout, text: str) -> None:
         label = QLabel(text)
-        label.setObjectName("screenTitle")
+        label.setObjectName("previewTitle")
         layout.addWidget(label)
 
     @staticmethod
@@ -384,21 +393,29 @@ class ReconciliationPreview(QWidget):
         value_text: str,
     ) -> None:
         row = QFrame()
-        row_layout = QVBoxLayout(row)
-        row_layout.setContentsMargins(10, 6, 10, 6)
-        row_layout.setSpacing(2)
+        row.setObjectName("previewRow")
+
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(4, 3, 4, 3)
+        row_layout.setSpacing(10)
 
         label = QLabel(label_text)
-        value = QLabel(value_text)
-        value.setWordWrap(True)
+        label.setObjectName("previewRowLabel")
 
-        row_layout.addWidget(label)
-        row_layout.addWidget(value)
+        value = QLabel(value_text)
+        value.setObjectName("previewRowValue")
+        value.setWordWrap(True)
+        value.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        row_layout.addWidget(label, 1)
+        row_layout.addWidget(value, 2)
         layout.addWidget(row)
 
     @staticmethod
     def _add_note(layout: QVBoxLayout, note: str) -> None:
         label = QLabel(f"Nota: {note}")
         label.setWordWrap(True)
-        label.setObjectName("metadata")
+        label.setObjectName("previewNote")
         layout.addWidget(label)
