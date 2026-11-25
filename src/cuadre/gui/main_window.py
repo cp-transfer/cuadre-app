@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 
 from cuadre.calculations import calculate_expected_cash
 from cuadre.gui.reconciliation_preview import ReconciliationPreview
@@ -40,6 +43,7 @@ from cuadre.store_config import (
     save_store_identity,
 )
 from cuadre.gui.question_flow import QuestionFlow
+from cuadre.update_worker import UpdateTaskResult, UpdateWorker
 
 
 class MainWindow(QMainWindow):
@@ -71,6 +75,11 @@ class MainWindow(QMainWindow):
         change_store = QAction("Cambiar tienda", self)
         change_store.triggered.connect(self._change_store)
         settings_menu.addAction(change_store)
+
+        settings_menu.addSeparator()
+        self.update_action = QAction("Buscar actualizaciones", self)
+        self.update_action.triggered.connect(self._check_for_updates)
+        settings_menu.addAction(self.update_action)
 
     def _build_ui(self) -> None:
         root = QWidget(self)
@@ -308,6 +317,90 @@ class MainWindow(QMainWindow):
         self.zoom_label.setText(f"{self.zoom} %")
         self.zoom_out_button.setEnabled(self.zoom > MIN_ZOOM)
         self.zoom_in_button.setEnabled(self.zoom < MAX_ZOOM)
+
+    def _check_for_updates(self) -> None:
+        self.update_action.setEnabled(False)
+        self.update_action.setText("Buscando actualizaciones…")
+
+        self._update_worker = UpdateWorker(self)
+        self._update_worker.completed.connect(self._update_check_completed)
+        self._update_worker.failed.connect(self._update_check_failed)
+        self._update_worker.start()
+
+    def _update_check_failed(self, message: str) -> None:
+        self.update_action.setEnabled(True)
+        self.update_action.setText("Buscar actualizaciones")
+        QMessageBox.warning(
+            self,
+            "Actualizaciones de Cuadre",
+            message,
+        )
+
+    def _update_check_completed(self, result: UpdateTaskResult) -> None:
+        self.update_action.setEnabled(True)
+        self.update_action.setText("Buscar actualizaciones")
+
+        update = result.update
+
+        if not update.available:
+            QMessageBox.information(
+                self,
+                "Cuadre actualizado",
+                f"Ya tienes instalada la última versión "
+                f"({update.installed_version}).",
+            )
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Actualización disponible",
+            f"Está disponible la versión {update.latest_version}.\n\n"
+            "¿Deseas instalarla ahora? Cuadre se cerrará y volverá "
+            "a abrirse automáticamente.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+
+        if answer != QMessageBox.StandardButton.Yes:
+            if result.temp_dir:
+                shutil.rmtree(result.temp_dir, ignore_errors=True)
+            return
+
+        try:
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "cuadre.update_installer",
+                    "--pid",
+                    str(__import__("os").getpid()),
+                    "--wheel",
+                    str(result.new_wheel),
+                    "--rollback-wheel",
+                    str(result.rollback_wheel),
+                    "--temp-dir",
+                    str(result.temp_dir),
+                ],
+                close_fds=True,
+                start_new_session=(sys.platform != "win32"),
+                creationflags=(
+                    subprocess.DETACHED_PROCESS
+                    | subprocess.CREATE_NEW_PROCESS_GROUP
+                    if sys.platform == "win32"
+                    else 0
+                ),
+            )
+        except OSError as error:
+            shutil.rmtree(result.temp_dir, ignore_errors=True)
+            QMessageBox.critical(
+                self,
+                "Error de actualización",
+                f"No fue posible iniciar el instalador: {error}",
+            )
+            return
+
+        from PySide6.QtWidgets import QApplication
+        QApplication.quit()
 
     def _change_store(self) -> None:
         from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit
